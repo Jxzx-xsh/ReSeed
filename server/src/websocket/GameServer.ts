@@ -14,6 +14,7 @@ import { SocialEngine } from '../agents/SocialEngine';
 import { LLMClient } from '../llm/LLMClient';
 import { PlayerState, getTrustLevelCN } from '../game/PlayerState';
 import { EventSystem } from '../game/EventSystem';
+import { EventChoice } from '../game/EventSystem';
 import { EchoCompanion } from '../game/EchoCompanion';
 
 const PORT = 3000;
@@ -56,6 +57,7 @@ export class GameServer {
   private worldPaused: boolean = false;
   private lockedNpcId: string | null = null;
   private chatHistory: Record<string, { speaker: string; text: string }[]> = {}; // npcId → 对话记录
+  private pendingChoice: EventChoice | null = null; // 暂存待选择的事件
 
   constructor() {
     // 两个 LLM 实例：世界运行（快速）vs 对话（质量高）
@@ -172,6 +174,9 @@ export class GameServer {
       case 'collect':
         this.handleCollect(ws);
         break;
+      case 'eventChoice':
+        this.handleEventChoice(ws, msg.choiceIndex);
+        break;
       case 'observe':
         await this.handleObserve(ws, msg.ticks ?? 10);
         break;
@@ -205,6 +210,11 @@ export class GameServer {
 
     // 检查事件
     const event = this.events.checkEvents(this.player, this.npcs);
+
+    // 暂存选择（如果事件需要玩家做选择）
+    if (event?.choiceRequired) {
+      this.pendingChoice = event.choiceRequired;
+    }
 
     this.send(ws, 'moved', {
       state: this.getFullState(),
@@ -279,6 +289,45 @@ export class GameServer {
 
     // 领取后发送更新状态 + 隐藏按钮信号
     this.send(ws, 'collected', { state: this.getFullState() });
+  }
+
+  private handleEventChoice(ws: WebSocket, choiceIndex: number): void {
+    if (!this.pendingChoice) {
+      this.send(ws, 'error', { message: '没有待处理的选择' });
+      return;
+    }
+
+    const option = this.pendingChoice.options[choiceIndex];
+    if (!option) {
+      this.send(ws, 'error', { message: '无效的选择' });
+      return;
+    }
+
+    const result = option.result;
+
+    // 应用选择的效果
+    if (result.relationshipChanges) {
+      for (const [npcId, delta] of Object.entries(result.relationshipChanges)) {
+        this.player.changeRelationship(npcId, delta as number);
+      }
+    }
+    if (result.inventoryChanges) {
+      for (const [item, delta] of Object.entries(result.inventoryChanges)) {
+        this.player.inventory[item] = (this.player.inventory[item] ?? 0) + (delta as number);
+      }
+    }
+    if (result.fragmentsDiscovered) {
+      for (const fragId of result.fragmentsDiscovered) {
+        this.player.discoverFragment(fragId, '选择');
+      }
+    }
+
+    // 清除待选择
+    this.pendingChoice = null;
+
+    // 发送选择结果消息和更新状态
+    this.send(ws, 'message', { text: result.message, type: 'event' });
+    this.send(ws, 'state', this.getFullState());
   }
 
   /**
@@ -666,6 +715,7 @@ export class GameServer {
         day: this.world.currentDay,
         time: this.world.getTimeStr(),
         inventory: this.player.inventory,
+        collectedToday: this.player.triggeredEvents.has(`ration_day_${this.player.day}`),
       },
       locations: LOCATIONS,
       npcsHere: npcsHere.map(n => ({

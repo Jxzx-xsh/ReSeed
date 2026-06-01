@@ -1,9 +1,10 @@
 /**
  * GameDatabase.ts
- * SQLite 数据库封装 —— 提供 NPC 状态持久化、世界日志、玩家介入记录
+ * SQLite 数据库封装（sql.js 版本）—— 提供 NPC 状态持久化、世界日志、玩家介入记录
+ * sql.js 是纯 WebAssembly 实现，无需编译原生模块
  */
 
-import Database from 'better-sqlite3';
+import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -84,24 +85,95 @@ export interface DBLogEntry {
 }
 
 export class GameDatabase {
-  private db: Database.Database;
+  private db!: SqlJsDatabase;
+  private dbPath: string;
+  private saveTimer: ReturnType<typeof setInterval> | null = null;
+  private dirty: boolean = false;
 
   constructor(dbPath?: string) {
-    const resolvedPath = dbPath ?? path.join(__dirname, '..', '..', 'database', 'reseed.db');
+    this.dbPath = dbPath ?? path.join(__dirname, '..', '..', 'database', 'reseed.db');
+  }
+
+  /**
+   * 异步初始化（必须在使用前调用）
+   */
+  async init(): Promise<void> {
+    const SQL = await initSqlJs();
     const schemaPath = path.join(__dirname, '..', '..', 'database', 'schema.sql');
 
-    const isNew = !fs.existsSync(resolvedPath);
-    this.db = new Database(resolvedPath);
+    if (fs.existsSync(this.dbPath)) {
+      // 加载已有数据库
+      const buffer = fs.readFileSync(this.dbPath);
+      this.db = new SQL.Database(buffer);
+    } else {
+      // 创建新数据库
+      this.db = new SQL.Database();
+      if (fs.existsSync(schemaPath)) {
+        const schema = fs.readFileSync(schemaPath, 'utf-8');
+        this.db.run(schema);
+        this.dirty = true;
+      }
+    }
 
     // 性能优化
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('synchronous = NORMAL');
+    this.db.run('PRAGMA journal_mode = WAL');
+    this.db.run('PRAGMA synchronous = NORMAL');
 
-    // 如果是新数据库，执行 schema
-    if (isNew && fs.existsSync(schemaPath)) {
-      const schema = fs.readFileSync(schemaPath, 'utf-8');
-      this.db.exec(schema);
+    // 定期自动保存（每 30 秒）
+    this.saveTimer = setInterval(() => {
+      if (this.dirty) this.saveToDisk();
+    }, 30000);
+  }
+
+  /**
+   * 保存数据库到磁盘
+   */
+  saveToDisk(): void {
+    const data = this.db.export();
+    const buffer = Buffer.from(data);
+    const dir = path.dirname(this.dbPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(this.dbPath, buffer);
+    this.dirty = false;
+  }
+
+  // ============================================================
+  // 内部工具方法
+  // ============================================================
+
+  private get(sql: string, ...params: any[]): any | undefined {
+    const stmt = this.db.prepare(sql);
+    stmt.bind(params);
+    if (stmt.step()) {
+      const row = stmt.getAsObject();
+      stmt.free();
+      return row;
     }
+    stmt.free();
+    return undefined;
+  }
+
+  private all(sql: string, ...params: any[]): any[] {
+    const results: any[] = [];
+    const stmt = this.db.prepare(sql);
+    stmt.bind(params);
+    while (stmt.step()) {
+      results.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return results;
+  }
+
+  private run(sql: string, ...params: any[]): { lastInsertRowid: number } {
+    this.db.run(sql, params);
+    this.dirty = true;
+    const result = this.get('SELECT last_insert_rowid() as id');
+    return { lastInsertRowid: result?.id ?? 0 };
+  }
+
+  private exec(sql: string): void {
+    this.db.run(sql);
+    this.dirty = true;
   }
 
   // ============================================================
@@ -109,16 +181,16 @@ export class GameDatabase {
   // ============================================================
 
   getWorldState(): DBWorldState | undefined {
-    return this.db.prepare('SELECT * FROM world_state WHERE id = 1').get() as DBWorldState | undefined;
+    return this.get('SELECT * FROM world_state WHERE id = 1') as DBWorldState | undefined;
   }
 
   updateWorldState(day: number, hour: number, season: string, ticks: number, events: string[]): void {
-    this.db.prepare(`
+    this.run(`
       UPDATE world_state 
       SET current_day = ?, current_hour = ?, season = ?, total_ticks = ?, 
           active_events = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
-    `).run(day, hour, season, ticks, JSON.stringify(events));
+    `, day, hour, season, ticks, JSON.stringify(events));
   }
 
   // ============================================================
@@ -126,11 +198,11 @@ export class GameDatabase {
   // ============================================================
 
   getNPC(id: string): DBNPC | undefined {
-    return this.db.prepare('SELECT * FROM npcs WHERE id = ?').get(id) as DBNPC | undefined;
+    return this.get('SELECT * FROM npcs WHERE id = ?', id) as DBNPC | undefined;
   }
 
   getAllNPCs(): DBNPC[] {
-    return this.db.prepare('SELECT * FROM npcs').all() as DBNPC[];
+    return this.all('SELECT * FROM npcs') as DBNPC[];
   }
 
   updateNPC(id: string, data: Partial<DBNPC>): void {
@@ -148,7 +220,7 @@ export class GameDatabase {
     fields.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
 
-    this.db.prepare(`UPDATE npcs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    this.run(`UPDATE npcs SET ${fields.join(', ')} WHERE id = ?`, ...values);
   }
 
   // ============================================================
@@ -156,24 +228,24 @@ export class GameDatabase {
   // ============================================================
 
   getRelationships(npcId: string): DBRelationship[] {
-    return this.db.prepare('SELECT * FROM npc_relationships WHERE npc_id = ?').all(npcId) as DBRelationship[];
+    return this.all('SELECT * FROM npc_relationships WHERE npc_id = ?', npcId) as DBRelationship[];
   }
 
   updateRelationship(npcId: string, targetId: string, affinity: number, trust?: number): void {
     if (trust !== undefined) {
-      this.db.prepare(`
+      this.run(`
         INSERT INTO npc_relationships (npc_id, target_id, affinity, trust, updated_at)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(npc_id, target_id) DO UPDATE SET 
           affinity = ?, trust = ?, updated_at = CURRENT_TIMESTAMP
-      `).run(npcId, targetId, affinity, trust, affinity, trust);
+      `, npcId, targetId, affinity, trust, affinity, trust);
     } else {
-      this.db.prepare(`
+      this.run(`
         INSERT INTO npc_relationships (npc_id, target_id, affinity, updated_at)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(npc_id, target_id) DO UPDATE SET 
           affinity = ?, updated_at = CURRENT_TIMESTAMP
-      `).run(npcId, targetId, affinity, affinity);
+      `, npcId, targetId, affinity, affinity);
     }
   }
 
@@ -182,34 +254,32 @@ export class GameDatabase {
   // ============================================================
 
   getActivePlan(npcId: string): (DBPlan & { steps: DBPlanStep[] }) | null {
-    const plan = this.db.prepare(
-      "SELECT * FROM npc_plans WHERE npc_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1"
-    ).get(npcId) as DBPlan | undefined;
+    const plan = this.get(
+      "SELECT * FROM npc_plans WHERE npc_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", npcId
+    ) as DBPlan | undefined;
 
     if (!plan) return null;
 
-    const steps = this.db.prepare(
-      'SELECT * FROM plan_steps WHERE plan_id = ? ORDER BY step_index'
-    ).all(plan.id) as DBPlanStep[];
+    const steps = this.all(
+      'SELECT * FROM plan_steps WHERE plan_id = ? ORDER BY step_index', plan.id
+    ) as DBPlanStep[];
 
     return { ...plan, steps };
   }
 
   createPlan(npcId: string, planType: string, goalId: string | null, steps: Omit<DBPlanStep, 'id' | 'plan_id'>[]): number {
-    const result = this.db.prepare(`
+    const result = this.run(`
       INSERT INTO npc_plans (npc_id, goal_id, plan_type, status, current_step_index, fail_count)
       VALUES (?, ?, ?, 'active', 0, 0)
-    `).run(npcId, goalId, planType);
+    `, npcId, goalId, planType);
 
-    const planId = result.lastInsertRowid as number;
-
-    const insertStep = this.db.prepare(`
-      INSERT INTO plan_steps (plan_id, step_index, name, description, duration_hours, hours_spent, success_rate, status, attempts)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    const planId = result.lastInsertRowid;
 
     for (const step of steps) {
-      insertStep.run(planId, step.step_index, step.name, step.description, step.duration_hours, step.hours_spent, step.success_rate, step.status, step.attempts);
+      this.run(`
+        INSERT INTO plan_steps (plan_id, step_index, name, description, duration_hours, hours_spent, success_rate, status, attempts)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, planId, step.step_index, step.name, step.description, step.duration_hours, step.hours_spent, step.success_rate, step.status, step.attempts);
     }
 
     return planId;
@@ -232,7 +302,7 @@ export class GameDatabase {
     }
 
     values.push(planId);
-    this.db.prepare(`UPDATE npc_plans SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    this.run(`UPDATE npc_plans SET ${updates.join(', ')} WHERE id = ?`, ...values);
   }
 
   updatePlanStep(planId: number, stepIndex: number, data: Partial<DBPlanStep>): void {
@@ -249,7 +319,7 @@ export class GameDatabase {
     if (fields.length === 0) return;
     values.push(planId, stepIndex);
 
-    this.db.prepare(`UPDATE plan_steps SET ${fields.join(', ')} WHERE plan_id = ? AND step_index = ?`).run(...values);
+    this.run(`UPDATE plan_steps SET ${fields.join(', ')} WHERE plan_id = ? AND step_index = ?`, ...values);
   }
 
   // ============================================================
@@ -257,30 +327,32 @@ export class GameDatabase {
   // ============================================================
 
   recordIntervention(data: DBIntervention): number {
-    const result = this.db.prepare(`
+    const result = this.run(`
       INSERT INTO player_interventions 
         (player_id, npc_id, intervention_type, item_type, quantity, plan_id, step_index,
          affinity_change, time_impact_hours, world_event, game_day, game_hour)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `,
       data.player_id, data.npc_id, data.intervention_type,
       data.item_type ?? null, data.quantity ?? 0,
       data.plan_id ?? null, data.step_index ?? null,
       data.affinity_change ?? 0, data.time_impact_hours ?? 0,
       data.world_event ?? null, data.game_day, data.game_hour
     );
-    return result.lastInsertRowid as number;
+    return result.lastInsertRowid;
   }
 
   getPlayerInterventions(playerId: string, npcId?: string, limit: number = 50): any[] {
     if (npcId) {
-      return this.db.prepare(
-        'SELECT * FROM player_interventions WHERE player_id = ? AND npc_id = ? ORDER BY id DESC LIMIT ?'
-      ).all(playerId, npcId, limit);
+      return this.all(
+        'SELECT * FROM player_interventions WHERE player_id = ? AND npc_id = ? ORDER BY id DESC LIMIT ?',
+        playerId, npcId, limit
+      );
     }
-    return this.db.prepare(
-      'SELECT * FROM player_interventions WHERE player_id = ? ORDER BY id DESC LIMIT ?'
-    ).all(playerId, limit);
+    return this.all(
+      'SELECT * FROM player_interventions WHERE player_id = ? ORDER BY id DESC LIMIT ?',
+      playerId, limit
+    );
   }
 
   // ============================================================
@@ -288,34 +360,29 @@ export class GameDatabase {
   // ============================================================
 
   addLog(entry: DBLogEntry): void {
-    this.db.prepare(`
+    this.run(`
       INSERT INTO world_log (game_day, game_hour, log_type, source, message, metadata)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(entry.game_day, entry.game_hour, entry.log_type, entry.source, entry.message, entry.metadata ?? '{}');
+    `, entry.game_day, entry.game_hour, entry.log_type, entry.source, entry.message, entry.metadata ?? '{}');
   }
 
   addLogBatch(entries: DBLogEntry[]): void {
-    const insert = this.db.prepare(`
-      INSERT INTO world_log (game_day, game_hour, log_type, source, message, metadata)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    const transaction = this.db.transaction((items: DBLogEntry[]) => {
-      for (const e of items) {
-        insert.run(e.game_day, e.game_hour, e.log_type, e.source, e.message, e.metadata ?? '{}');
-      }
-    });
-
-    transaction(entries);
+    for (const e of entries) {
+      this.run(`
+        INSERT INTO world_log (game_day, game_hour, log_type, source, message, metadata)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, e.game_day, e.game_hour, e.log_type, e.source, e.message, e.metadata ?? '{}');
+    }
   }
 
   getRecentLogs(limit: number = 30, source?: string): any[] {
     if (source) {
-      return this.db.prepare(
-        'SELECT * FROM world_log WHERE source = ? ORDER BY id DESC LIMIT ?'
-      ).all(source, limit);
+      return this.all(
+        'SELECT * FROM world_log WHERE source = ? ORDER BY id DESC LIMIT ?',
+        source, limit
+      );
     }
-    return this.db.prepare('SELECT * FROM world_log ORDER BY id DESC LIMIT ?').all(limit);
+    return this.all('SELECT * FROM world_log ORDER BY id DESC LIMIT ?', limit);
   }
 
   // ============================================================
@@ -323,26 +390,26 @@ export class GameDatabase {
   // ============================================================
 
   addMemory(npcId: string, type: string, content: string, importance: number, gameDay: number, gameHour: number, relatedEntity?: string): void {
-    this.db.prepare(`
+    this.run(`
       INSERT INTO npc_memories (npc_id, memory_type, content, importance, related_entity, game_day, game_hour)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(npcId, type, content, importance, relatedEntity ?? null, gameDay, gameHour);
+    `, npcId, type, content, importance, relatedEntity ?? null, gameDay, gameHour);
   }
 
   getTopMemories(npcId: string, limit: number = 10): any[] {
-    return this.db.prepare(`
+    return this.all(`
       SELECT * FROM npc_memories 
       WHERE npc_id = ? AND current_strength > 0.3
       ORDER BY importance * current_strength DESC
       LIMIT ?
-    `).all(npcId, limit);
+    `, npcId, limit);
   }
 
   decayMemories(decayAmount: number = 0.01): void {
-    this.db.prepare(`
+    this.run(`
       UPDATE npc_memories 
       SET current_strength = MAX(0, current_strength - decay_rate * ?)
-    `).run(decayAmount);
+    `, decayAmount);
   }
 
   // ============================================================
@@ -350,7 +417,7 @@ export class GameDatabase {
   // ============================================================
 
   getPlayerStats(playerId: string): any {
-    return this.db.prepare(`
+    return this.get(`
       SELECT
         COUNT(*) as total_interventions,
         SUM(CASE WHEN intervention_type = 'help' THEN 1 ELSE 0 END) as helps,
@@ -359,7 +426,7 @@ export class GameDatabase {
         SUM(time_impact_hours) as total_time_impact
       FROM player_interventions
       WHERE player_id = ?
-    `).get(playerId);
+    `, playerId);
   }
 
   // ============================================================
@@ -367,6 +434,12 @@ export class GameDatabase {
   // ============================================================
 
   close(): void {
+    if (this.saveTimer) {
+      clearInterval(this.saveTimer);
+      this.saveTimer = null;
+    }
+    // 关闭前保存
+    if (this.dirty) this.saveToDisk();
     this.db.close();
   }
 }

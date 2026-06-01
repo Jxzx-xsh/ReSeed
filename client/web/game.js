@@ -151,9 +151,10 @@ function updateFullState(state) {
   // 背包
   renderInventory(state.player.inventory);
 
-  // 领取配给按钮
+  // 领取配给按钮（在净水站或绿洲且今天未领取时显示）
   const collectBtn = document.getElementById('btn-collect');
-  if (state.player.location === 'water' || state.player.location === 'greenhouse') {
+  const canCollect = (state.player.location === 'water' || state.player.location === 'greenhouse') && !state.player.collectedToday;
+  if (canCollect) {
     collectBtn.classList.remove('hidden');
   } else {
     collectBtn.classList.add('hidden');
@@ -291,7 +292,7 @@ function showEvent(event) {
       btn.onclick = () => {
         modal.classList.add('hidden');
         addLog(`你选择了: ${event.choiceRequired.options[i].text}`, 'event');
-        // TODO: 发送选择到服务器
+        send({ type: 'eventChoice', choiceIndex: i });
       };
       choicesDiv.appendChild(btn);
     }
