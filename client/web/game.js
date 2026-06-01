@@ -6,6 +6,7 @@
 let ws;
 let currentState = null;
 let chattingWith = null;
+let questMarkers = {};  // NPC 任务标记
 
 // ============================================================
 // 初始化
@@ -126,6 +127,20 @@ function handleServerMessage(msg) {
     case 'error':
       addLog(`错误: ${msg.message}`, 'warning');
       break;
+    case 'questAvailable':
+      showQuestOffer(msg.quest);
+      break;
+    case 'questUpdate':
+      updateQuestPanel(msg.quests, msg.markers);
+      if (msg.notification) addLog(msg.notification, 'event');
+      break;
+    case 'questSubmitted':
+      showQuestComplete(msg.quest, msg.reward);
+      if (msg.state) updateFullState(msg.state);
+      break;
+    case 'historyLogs':
+      renderHistoryLogs(msg.logs);
+      break;
   }
 }
 
@@ -147,6 +162,11 @@ function updateFullState(state) {
 
   // NPC 列表
   renderNPCs(state.npcsHere);
+
+  // 任务面板
+  if (state.quests) {
+    updateQuestPanel(state.quests, state.questMarkers);
+  }
 
   // 背包
   renderInventory(state.player.inventory);
@@ -173,10 +193,44 @@ function renderNPCs(npcsHere) {
   for (const npc of npcsHere) {
     const card = document.createElement('div');
     card.className = 'npc-card';
+
+    // 任务标记
+    let marker = '';
+    if (questMarkers[npc.id] === 'ready') {
+      marker = '<span class="quest-marker">✅</span>';
+    } else if (questMarkers[npc.id] === 'available') {
+      marker = '<span class="quest-marker">❗</span>';
+    }
+
     card.innerHTML = `
-      <div class="npc-name">${npc.name}</div>
+      <div class="npc-name">${npc.name}${marker}</div>
       <div class="npc-info">${npc.activity} · ${npc.trust}</div>
     `;
+
+    // 任务交互按钮
+    const actions = document.createElement('div');
+    actions.className = 'quest-actions';
+
+    if (questMarkers[npc.id] === 'available') {
+      const btn = document.createElement('button');
+      btn.className = 'btn-quest-action';
+      btn.textContent = '📋 查看任务';
+      btn.onclick = (e) => { e.stopPropagation(); send({ type: 'questCheck', npcId: npc.id }); };
+      actions.appendChild(btn);
+    }
+
+    if (questMarkers[npc.id] === 'ready') {
+      const btn = document.createElement('button');
+      btn.className = 'btn-quest-action submit';
+      btn.textContent = '✅ 交付任务';
+      btn.onclick = (e) => { e.stopPropagation(); send({ type: 'questSubmit', npcId: npc.id }); };
+      actions.appendChild(btn);
+    }
+
+    if (actions.children.length > 0) {
+      card.appendChild(actions);
+    }
+
     card.onclick = () => openChat(npc);
     container.appendChild(card);
   }
@@ -356,6 +410,195 @@ function normalizeNpcLocation(loc) {
   if (loc.includes('回声井')) return 'echo_well';
   if (loc.includes('南门')) return 'south_gate';
   return loc;
+}
+
+// ============================================================
+// 历史日志回显
+// ============================================================
+
+function renderHistoryLogs(logs) {
+  const logContainer = document.getElementById('message-log');
+
+  for (const line of logs) {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+
+    // 根据内容类型设置样式
+    if (line.startsWith('═══')) {
+      entry.className = 'log-entry event';
+      entry.style.textAlign = 'center';
+      entry.style.opacity = '0.7';
+    } else if (line.includes('🎭')) {
+      entry.className = 'log-entry npc-action';
+    } else if (line.includes('💬')) {
+      entry.className = 'log-entry info';
+    } else if (line.includes('⚡')) {
+      entry.className = 'log-entry event';
+    } else if (line.includes('📋')) {
+      entry.className = 'log-entry success';
+    } else if (line.includes('...')) {
+      entry.className = 'log-entry info';
+      entry.style.opacity = '0.4';
+    } else {
+      entry.className = 'log-entry npc-action';
+    }
+
+    entry.style.animation = 'none'; // 历史日志不需要动画
+    entry.textContent = line;
+    logContainer.appendChild(entry);
+  }
+
+  // 添加分隔线
+  const separator = document.createElement('div');
+  separator.className = 'log-entry info';
+  separator.style.textAlign = 'center';
+  separator.style.opacity = '0.5';
+  separator.style.borderLeft = 'none';
+  separator.textContent = '─── 以上为历史记录 ───';
+  logContainer.appendChild(separator);
+
+  logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+// ============================================================
+// 任务系统 UI
+// ============================================================
+
+function updateQuestPanel(quests, markers) {
+  if (markers) questMarkers = markers;
+
+  const container = document.getElementById('quest-list');
+  container.innerHTML = '';
+
+  const active = quests.filter(q => ['accepted', 'in_progress', 'ready'].includes(q.status));
+  const completed = quests.filter(q => q.status === 'completed');
+
+  if (active.length === 0) {
+    container.innerHTML = '<div style="opacity:0.4;font-size:11px">暂无进行中的任务</div>';
+  } else {
+    for (const quest of active) {
+      const card = document.createElement('div');
+      card.className = `quest-card ${quest.status === 'ready' ? 'quest-ready' : ''}`;
+
+      const totalRequired = quest.objectives.reduce((s, o) => s + o.required, 0);
+      const totalCurrent = quest.objectives.reduce((s, o) => s + Math.min(o.current, o.required), 0);
+      const percent = totalRequired > 0 ? (totalCurrent / totalRequired) * 100 : 0;
+
+      let statusIcon = '⏳';
+      if (quest.status === 'ready') statusIcon = '✅';
+
+      let objectivesHtml = '';
+      for (const obj of quest.objectives) {
+        const done = obj.current >= obj.required;
+        objectivesHtml += `<div class="quest-card-objective">${done ? '✓' : '○'} ${obj.description} [${Math.min(obj.current, obj.required)}/${obj.required}]</div>`;
+      }
+
+      card.innerHTML = `
+        <div class="quest-card-name">${statusIcon} ${quest.name}</div>
+        ${objectivesHtml}
+        <div class="quest-card-giver">委托人: ${quest.giverName}</div>
+        <div class="quest-progress-bar">
+          <div class="quest-progress-fill ${percent >= 100 ? 'complete' : ''}" style="width:${percent}%"></div>
+        </div>
+      `;
+
+      container.appendChild(card);
+    }
+  }
+
+  // 已完成计数
+  const toggle = document.getElementById('quest-completed-toggle');
+  if (completed.length > 0) {
+    toggle.classList.remove('hidden');
+    document.getElementById('quest-completed-count').textContent = `📜 已完成 (${completed.length})`;
+  } else {
+    toggle.classList.add('hidden');
+  }
+
+  // 重新渲染 NPC 列表（更新标记）
+  if (currentState && currentState.npcsHere) {
+    renderNPCs(currentState.npcsHere);
+  }
+}
+
+function showQuestOffer(quest) {
+  const modal = document.getElementById('quest-offer-modal');
+  document.getElementById('quest-offer-name').textContent = quest.name;
+  document.getElementById('quest-offer-desc').textContent = quest.description;
+
+  // 目标
+  let objHtml = '<div style="margin-bottom:5px;color:#a8d8ea">目标:</div>';
+  for (const obj of quest.objectives) {
+    objHtml += `<div>○ ${obj.description} ×${obj.required}</div>`;
+  }
+  document.getElementById('quest-offer-objectives').innerHTML = objHtml;
+
+  // 奖励
+  let rewardHtml = '<div style="margin-bottom:5px">奖励:</div>';
+  if (quest.reward.items) {
+    for (const [item, qty] of Object.entries(quest.reward.items)) {
+      rewardHtml += `<div>  💰 ${item} +${qty}</div>`;
+    }
+  }
+  if (quest.reward.relationships) {
+    for (const [npc, delta] of Object.entries(quest.reward.relationships)) {
+      rewardHtml += `<div>  ❤️ 好感 +${delta}</div>`;
+    }
+  }
+  document.getElementById('quest-offer-reward').innerHTML = rewardHtml;
+
+  // 期限
+  if (quest.dayLimit) {
+    document.getElementById('quest-offer-limit').textContent = `⏰ 期限: ${quest.dayLimit} 天`;
+  } else {
+    document.getElementById('quest-offer-limit').textContent = '⏰ 无期限';
+  }
+
+  // 按钮绑定
+  document.getElementById('btn-quest-accept').onclick = () => {
+    modal.classList.add('hidden');
+    send({ type: 'questAccept', questId: quest.id });
+    addLog(`接受任务: ${quest.name}`, 'event');
+    if (window.playSound) window.playSound('quest');
+  };
+
+  document.getElementById('btn-quest-decline').onclick = () => {
+    modal.classList.add('hidden');
+    send({ type: 'questDecline', questId: quest.id });
+    addLog(`拒绝了任务: ${quest.name}`, 'info');
+  };
+
+  modal.classList.remove('hidden');
+}
+
+function showQuestComplete(quest, reward) {
+  const modal = document.getElementById('quest-complete-modal');
+  document.getElementById('quest-complete-name').textContent = quest.name;
+  document.getElementById('quest-complete-message').textContent = reward.message;
+
+  let rewardsHtml = '';
+  if (reward.items) {
+    for (const [item, qty] of Object.entries(reward.items)) {
+      rewardsHtml += `<div class="reward-line">💰 ${item} +${qty}</div>`;
+    }
+  }
+  if (reward.relationships) {
+    for (const [npc, delta] of Object.entries(reward.relationships)) {
+      rewardsHtml += `<div class="reward-line">❤️ 好感 +${delta}</div>`;
+    }
+  }
+  if (reward.fragments && reward.fragments.length > 0) {
+    rewardsHtml += `<div class="reward-line">📓 发现新线索</div>`;
+  }
+  document.getElementById('quest-complete-rewards').innerHTML = rewardsHtml;
+
+  document.getElementById('btn-quest-confirm').onclick = () => {
+    modal.classList.add('hidden');
+  };
+
+  modal.classList.remove('hidden');
+  addLog(`✅ 完成任务: ${quest.name}`, 'success');
+  if (window.playSound) window.playSound('quest_complete');
 }
 
 // ============================================================

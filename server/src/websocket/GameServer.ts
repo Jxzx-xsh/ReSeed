@@ -15,6 +15,8 @@ import { LLMClient } from '../llm/LLMClient';
 import { PlayerState, getTrustLevelCN } from '../game/PlayerState';
 import { EventSystem } from '../game/EventSystem';
 import { EventChoice } from '../game/EventSystem';
+import { QuestSystem } from '../game/QuestSystem';
+import { WorldLogger } from '../game/WorldLogger';
 import { EchoCompanion } from '../game/EchoCompanion';
 
 const PORT = 3000;
@@ -58,6 +60,8 @@ export class GameServer {
   private lockedNpcId: string | null = null;
   private chatHistory: Record<string, { speaker: string; text: string }[]> = {}; // npcId → 对话记录
   private pendingChoice: EventChoice | null = null; // 暂存待选择的事件
+  private questSystem: QuestSystem;
+  private worldLogger: WorldLogger;
 
   constructor() {
     // 两个 LLM 实例：世界运行（快速）vs 对话（质量高）
@@ -70,6 +74,8 @@ export class GameServer {
     this.player = new PlayerState();
     this.events = new EventSystem();
     this.echo = new EchoCompanion(this.llmChat);
+    this.questSystem = new QuestSystem();
+    this.worldLogger = new WorldLogger();
 
     // 尝试加载存档
     this.loadGame();
@@ -88,6 +94,7 @@ export class GameServer {
     this.httpServer.listen(PORT, () => {
       console.log(`🌍 种子城服务器启动: http://localhost:${PORT}`);
       console.log(`⏱️  世界运行中（1秒=1分钟 | 1分钟=1小时 | 26分钟=1天 | 13小时=1季）`);
+      this.worldLogger.logSystem(this.world.currentDay, '服务器启动');
     });
 
     // 世界持续运行：每 10 秒 = 10 游戏分钟
@@ -134,6 +141,9 @@ export class GameServer {
 
     // 发送初始状态
     this.send(ws, 'init', this.getFullState());
+
+    // 发送历史世界日志（当天 + 前一天）
+    this.sendHistoryLogs(ws);
 
     ws.on('message', async (raw) => {
       try {
@@ -189,6 +199,18 @@ export class GameServer {
       case 'echo':
         await this.handleEcho(ws, msg.message);
         break;
+      case 'questCheck':
+        this.handleQuestCheck(ws, msg.npcId);
+        break;
+      case 'questAccept':
+        this.handleQuestAccept(ws, msg.questId);
+        break;
+      case 'questDecline':
+        this.handleQuestDecline(ws, msg.questId);
+        break;
+      case 'questSubmit':
+        this.handleQuestSubmit(ws, msg.npcId);
+        break;
       case 'getState':
         this.send(ws, 'state', this.getFullState());
         break;
@@ -215,6 +237,15 @@ export class GameServer {
     if (event?.choiceRequired) {
       this.pendingChoice = event.choiceRequired;
     }
+
+    // 记录事件日志
+    if (event) {
+      this.worldLogger.logEvent(this.world.currentDay, this.world.getTimeStr(), '剧情事件', event.message.slice(0, 100));
+    }
+
+    // 检查任务进度
+    const questUpdates = this.questSystem.update(this.player, this.npcs);
+    this.sendQuestUpdates(ws, questUpdates);
 
     this.send(ws, 'moved', {
       state: this.getFullState(),
@@ -243,6 +274,9 @@ export class GameServer {
       if (!this.chatHistory[npcId]) this.chatHistory[npcId] = [];
       this.chatHistory[npcId].push({ speaker: '你', text: actualMessage });
       this.chatHistory[npcId].push({ speaker: npc.name, text: reply });
+
+      // 持久化对话日志
+      this.worldLogger.logDialogue(this.world.currentDay, this.world.getTimeStr(), npc.name, actualMessage, reply);
       // 限制每个 NPC 最多保留 50 条
       if (this.chatHistory[npcId].length > 50) {
         this.chatHistory[npcId] = this.chatHistory[npcId].slice(-50);
@@ -255,6 +289,14 @@ export class GameServer {
         trustLevel: getTrustLevelCN(this.player.getTrustLevel(npcId)),
         state: this.getFullState(),
       });
+
+      // 检查对话是否触发任务进度
+      const talkUpdates = this.questSystem.onTalk(npcId, this.player);
+      this.sendQuestUpdates(ws, talkUpdates);
+
+      // 检查是否有新任务可用
+      const questUpdates = this.questSystem.update(this.player, this.npcs);
+      this.sendQuestUpdates(ws, questUpdates);
     } catch {
       this.send(ws, 'npcReply', {
         npcId,
@@ -328,6 +370,109 @@ export class GameServer {
     // 发送选择结果消息和更新状态
     this.send(ws, 'message', { text: result.message, type: 'event' });
     this.send(ws, 'state', this.getFullState());
+  }
+
+  // ============================================================
+  // 任务处理
+  // ============================================================
+
+  private handleQuestCheck(ws: WebSocket, npcId: string): void {
+    const available = this.questSystem.getAvailableForNPC(npcId);
+    if (available.length > 0) {
+      this.send(ws, 'questAvailable', { quest: this.serializeQuest(available[0]) });
+    } else {
+      this.send(ws, 'message', { text: '这个人暂时没有任务给你。', type: 'info' });
+    }
+  }
+
+  private handleQuestAccept(ws: WebSocket, questId: string): void {
+    const quest = this.questSystem.accept(questId, this.player);
+    if (quest) {
+      this.send(ws, 'questUpdate', {
+        quests: this.questSystem.getActiveQuests().map(q => this.serializeQuest(q)),
+        markers: this.questSystem.getNPCQuestMarkers(),
+        notification: `📋 接受任务: ${quest.name}`,
+      });
+    }
+  }
+
+  private handleQuestDecline(ws: WebSocket, questId: string): void {
+    const quest = this.questSystem.decline(questId);
+    if (quest) {
+      // 拒绝任务可能影响好感
+      this.player.changeRelationship(quest.giver, -5);
+      this.send(ws, 'questUpdate', {
+        quests: this.questSystem.getActiveQuests().map(q => this.serializeQuest(q)),
+        markers: this.questSystem.getNPCQuestMarkers(),
+      });
+    }
+  }
+
+  private handleQuestSubmit(ws: WebSocket, npcId: string): void {
+    const readyQuests = this.questSystem.getReadyForNPC(npcId);
+    if (readyQuests.length === 0) {
+      this.send(ws, 'message', { text: '没有可以交付的任务。', type: 'info' });
+      return;
+    }
+
+    // 提交第一个可交付的任务
+    const result = this.questSystem.submit(readyQuests[0].id, this.player);
+    if (result) {
+      this.send(ws, 'questSubmitted', {
+        quest: this.serializeQuest(result.quest),
+        reward: result.reward,
+        state: this.getFullState(),
+      });
+
+      // 更新任务面板
+      this.send(ws, 'questUpdate', {
+        quests: this.questSystem.getActiveQuests().map(q => this.serializeQuest(q)),
+        markers: this.questSystem.getNPCQuestMarkers(),
+      });
+    }
+  }
+
+  private sendQuestUpdates(ws: WebSocket, updates: any[]): void {
+    if (updates.length === 0) return;
+
+    for (const update of updates) {
+      if (update.type === 'available') {
+        // 新任务可用时自动弹出
+        this.send(ws, 'questAvailable', { quest: this.serializeQuest(update.quest) });
+      } else if (update.type === 'ready') {
+        this.send(ws, 'questUpdate', {
+          quests: this.questSystem.getActiveQuests().map(q => this.serializeQuest(q)),
+          markers: this.questSystem.getNPCQuestMarkers(),
+          notification: `✅ 任务可交付: ${update.quest.name}`,
+        });
+      } else if (update.type === 'progress') {
+        this.send(ws, 'questUpdate', {
+          quests: this.questSystem.getActiveQuests().map(q => this.serializeQuest(q)),
+          markers: this.questSystem.getNPCQuestMarkers(),
+        });
+      } else if (update.type === 'failed') {
+        this.send(ws, 'questUpdate', {
+          quests: this.questSystem.getActiveQuests().map(q => this.serializeQuest(q)),
+          markers: this.questSystem.getNPCQuestMarkers(),
+          notification: `❌ 任务失败: ${update.quest.name}`,
+        });
+      }
+    }
+  }
+
+  private serializeQuest(quest: any): any {
+    return {
+      id: quest.id,
+      name: quest.name,
+      description: quest.description,
+      giver: quest.giver,
+      giverName: quest.giverName,
+      status: quest.status,
+      objectives: quest.objectives,
+      reward: quest.reward,
+      dayLimit: quest.dayLimit,
+      acceptedDay: quest.acceptedDay,
+    };
   }
 
   /**
@@ -553,6 +698,11 @@ export class GameServer {
           message: entry.message,
         }));
         this.broadcast('worldLog', { time: timeStr, entries });
+
+        // 持久化世界日志
+        for (const entry of entries) {
+          this.worldLogger.logAction(this.world.currentDay, timeStr, entry.npc, entry.location, entry.message);
+        }
       }
     }
 
@@ -566,6 +716,12 @@ export class GameServer {
           participants: enc.participants.map(n => n.name),
           dialogues: enc.dialogues,
         });
+
+        // 持久化相遇日志
+        this.worldLogger.logEncounter(
+          this.world.currentDay, timeStr, enc.location,
+          enc.participants.map(n => n.name), enc.dialogues
+        );
       }
     }
 
@@ -573,6 +729,7 @@ export class GameServer {
     if (this.world.currentHour === 0 && this.world.currentMinute === 0) {
       this.player.newDay();
       this.broadcast('newDay', { day: this.world.currentDay });
+      this.worldLogger.logSystem(this.world.currentDay, `=== Day ${this.world.currentDay} 开始 ===`);
     }
 
     // 广播状态更新
@@ -597,11 +754,51 @@ export class GameServer {
     }
   }
 
+  private sendHistoryLogs(ws: WebSocket): void {
+    const currentDay = this.world.currentDay;
+    const logs: string[] = [];
+
+    // 加载前一天的日志
+    if (currentDay > 1) {
+      const prevLog = this.worldLogger.readDay(currentDay - 1);
+      if (prevLog) {
+        logs.push(`═══ Day ${currentDay - 1} ═══`);
+        // 只取最后 20 条避免太多
+        const lines = prevLog.trim().split('\n');
+        const recent = lines.slice(-20);
+        if (lines.length > 20) logs.push(`  ... (省略 ${lines.length - 20} 条)`);
+        logs.push(...recent.map(l => this.simplifyLogLine(l)));
+      }
+    }
+
+    // 加载当天的日志
+    const todayLog = this.worldLogger.readDay(currentDay);
+    if (todayLog) {
+      logs.push(`═══ Day ${currentDay}（今天）═══`);
+      const lines = todayLog.trim().split('\n');
+      const recent = lines.slice(-30);
+      if (lines.length > 30) logs.push(`  ... (省略 ${lines.length - 30} 条)`);
+      logs.push(...recent.map(l => this.simplifyLogLine(l)));
+    }
+
+    if (logs.length > 0) {
+      this.send(ws, 'historyLogs', { logs });
+    }
+  }
+
+  private simplifyLogLine(line: string): string {
+    // 去掉末尾的真实时间戳，只保留游戏内容
+    return line.replace(/\s+\(\d{4}-\d{2}-\d{2}T.*?\)$/, '');
+  }
+
   // ============================================================
   // 存档 / 读档
   // ============================================================
 
   private saveGame(): void {
+    // 刷新世界日志到磁盘
+    this.worldLogger.flush();
+
     const saveDir = path.join(__dirname, '..', '..', 'data');
     const savePath = path.join(saveDir, 'savegame.json');
 
@@ -629,6 +826,7 @@ export class GameServer {
       npcs: this.npcs.map(n => n.serialize()),
       echo: this.echo.serialize(),
       chatHistory: this.chatHistory,
+      quests: this.questSystem.serialize(),
     };
 
     fs.writeFileSync(savePath, JSON.stringify(data));
@@ -693,6 +891,11 @@ export class GameServer {
         this.chatHistory = data.chatHistory;
       }
 
+      // 恢复任务系统
+      if (data.quests) {
+        this.questSystem = QuestSystem.fromSave(data.quests);
+      }
+
       console.log(`💾 存档加载成功 (Day${this.world.currentDay} ${this.world.currentHour}:00, tick ${this.tick})`);
       return true;
     } catch (e: any) {
@@ -736,6 +939,8 @@ export class GameServer {
         message: l.message,
         type: l.type,
       }))).slice(-10),
+      quests: this.questSystem.getActiveQuests().map(q => this.serializeQuest(q)),
+      questMarkers: this.questSystem.getNPCQuestMarkers(),
     };
   }
 

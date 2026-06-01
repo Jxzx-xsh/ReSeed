@@ -345,3 +345,216 @@ body {
   animation: blink 1s infinite;
 }
 @keyframes blink { 50% { opacity: 0.3; } }
+
+
+/* ============================================================
+   任务系统
+   ============================================================ */
+
+/* 任务面板 */
+#quest-panel {
+  border-top: 1px solid #0f3460;
+  padding-top: 10px;
+}
+
+#quest-panel h3 { font-size: 13px; color: #ffd700; margin-bottom: 8px; }
+
+#quest-list { display: flex; flex-direction: column; gap: 6px; }
+
+.quest-card {
+  padding: 8px 10px;
+  background: #0f3460;
+  border-radius: 4px;
+  font-size: 12px;
+  border-left: 3px solid #533483;
+  transition: all 0.2s;
+}
+
+.quest-card.quest-ready {
+  border-left-color: #4caf50;
+  animation: questPulse 2s infinite;
+}
+
+.quest-card.quest-failed { border-left-color: #e94560; opacity: 0.6; }
+
+@keyframes questPulse {
+  0%, 100% { background: #0f3460; }
+  50% { background: #1a3a1a; }
+}
+
+.quest-card-name { font-weight: bold; color: #ffd700; margin-bottom: 3px; }
+.quest-card-objective { opacity: 0.8; margin-bottom: 2px; }
+.quest-card-giver { opacity: 0.5; font-size: 11px; }
+
+.quest-progress-bar {
+  height: 3px;
+  background: #1a1a2e;
+  border-radius: 2px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.quest-progress-fill {
+  height: 100%;
+  background: #ffd700;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.quest-progress-fill.complete { background: #4caf50; }
+
+#quest-completed-toggle {
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+#quest-completed-toggle:hover { opacity: 0.8; }
+
+/* NPC 卡片任务标记 */
+.npc-card .quest-marker {
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 14px;
+  animation: markerBounce 1s infinite;
+}
+
+@keyframes markerBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.npc-card .quest-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.btn-quest-action {
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid #533483;
+  background: #16213e;
+  color: #ffd700;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-quest-action:hover { background: #533483; }
+.btn-quest-action.submit { border-color: #4caf50; color: #4caf50; }
+.btn-quest-action.submit:hover { background: #1a3a1a; }
+
+/* 任务接受弹窗 */
+#quest-offer-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 101;
+}
+
+#quest-offer-content {
+  background: #16213e;
+  border: 1px solid #ffd700;
+  border-radius: 8px;
+  padding: 25px;
+  max-width: 420px;
+  width: 90%;
+}
+
+#quest-offer-content h3 { color: #ffd700; margin-bottom: 15px; font-size: 16px; }
+#quest-offer-name { font-weight: bold; font-size: 15px; margin-bottom: 8px; }
+#quest-offer-desc { font-size: 13px; opacity: 0.8; margin-bottom: 12px; line-height: 1.5; }
+
+#quest-offer-objectives {
+  background: #0f0f23;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+#quest-offer-reward {
+  background: #0f0f23;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #4caf50;
+}
+
+#quest-offer-limit { font-size: 11px; opacity: 0.6; margin-bottom: 15px; }
+
+.quest-offer-buttons { display: flex; gap: 10px; }
+
+.quest-offer-buttons button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+#btn-quest-accept { background: #4caf50; color: #fff; }
+#btn-quest-accept:hover { background: #388e3c; }
+#btn-quest-decline { background: #333; color: #e0e0e0; border: 1px solid #555; }
+#btn-quest-decline:hover { background: #555; }
+
+/* 任务完成弹窗 */
+#quest-complete-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 101;
+}
+
+#quest-complete-content {
+  background: #16213e;
+  border: 1px solid #4caf50;
+  border-radius: 8px;
+  padding: 25px;
+  max-width: 420px;
+  width: 90%;
+  animation: questCompleteIn 0.4s ease-out;
+}
+
+@keyframes questCompleteIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+#quest-complete-content h3 { color: #4caf50; margin-bottom: 15px; font-size: 16px; }
+#quest-complete-name { font-weight: bold; font-size: 15px; margin-bottom: 10px; color: #ffd700; }
+#quest-complete-message { font-size: 13px; line-height: 1.6; margin-bottom: 15px; font-style: italic; opacity: 0.9; }
+
+#quest-complete-rewards {
+  background: #0f0f23;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 12px;
+}
+
+#quest-complete-rewards .reward-line { padding: 3px 0; }
+
+#btn-quest-confirm {
+  width: 100%;
+  padding: 10px;
+  background: #4caf50;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+}
+#btn-quest-confirm:hover { background: #388e3c; }

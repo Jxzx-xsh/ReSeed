@@ -55,6 +55,13 @@
           <h3>👥 这里的人</h3>
           <div id="npc-cards"></div>
         </div>
+        <div id="quest-panel">
+          <h3>📋 任务</h3>
+          <div id="quest-list"></div>
+          <div id="quest-completed-toggle" class="hidden">
+            <span id="quest-completed-count"></span>
+          </div>
+        </div>
         <div id="inventory-panel">
           <h3>🎒 背包</h3>
           <div id="inventory-items"></div>
@@ -77,6 +84,33 @@
       <div id="event-content">
         <p id="event-text"></p>
         <div id="event-choices"></div>
+      </div>
+    </div>
+
+    <!-- 任务接受弹窗 -->
+    <div id="quest-offer-modal" class="hidden">
+      <div id="quest-offer-content">
+        <h3>📋 新任务</h3>
+        <div id="quest-offer-name"></div>
+        <div id="quest-offer-desc"></div>
+        <div id="quest-offer-objectives"></div>
+        <div id="quest-offer-reward"></div>
+        <div id="quest-offer-limit"></div>
+        <div class="quest-offer-buttons">
+          <button id="btn-quest-accept">接受</button>
+          <button id="btn-quest-decline">拒绝</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 任务完成弹窗 -->
+    <div id="quest-complete-modal" class="hidden">
+      <div id="quest-complete-content">
+        <h3>✅ 任务完成！</h3>
+        <div id="quest-complete-name"></div>
+        <div id="quest-complete-message"></div>
+        <div id="quest-complete-rewards"></div>
+        <button id="btn-quest-confirm">确认</button>
       </div>
     </div>
   </div>
