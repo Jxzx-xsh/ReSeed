@@ -3,6 +3,8 @@
  * LLM 调用封装 —— 兼容 OpenAI API 格式（LM Studio / Ollama / Groq）
  */
 
+import fetch from 'node-fetch';
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;

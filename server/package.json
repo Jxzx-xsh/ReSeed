@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "description": "ReSeed 后端 — Node.js + WebSocket + SmartNPC",
   "private": true,
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "tsc",
@@ -17,13 +20,15 @@
     "play": "ts-node src/game/SeedCityCLI.ts"
   },
   "dependencies": {
-    "better-sqlite3": "^12.10.0",
+    "better-sqlite3": "^9.6.0",
     "dotenv": "^17.4.2",
+    "node-fetch": "^2.7.0",
     "ws": "^8.20.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.11.0",
+    "@types/node-fetch": "^2.6.13",
     "@types/ws": "^8.18.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.0"
