@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReSeed · 种子城</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部状态栏 -->
+    <header id="status-bar">
+      <span id="day-display">Day 1</span>
+      <span id="time-display">🕐 00:00</span>
+      <span id="location-display">📍 南门</span>
+      <button id="btn-audio" title="开启音效">🔇</button>
+    </header>
+
+    <!-- 主内容区 -->
+    <main id="main-content">
+      <!-- 左侧：地图 -->
+      <section id="map-panel">
+        <h3>种子城</h3>
+        <canvas id="map-canvas"></canvas>
+        <div id="map-legend">
+          <span style="color:#e94560">● 埃兹拉</span>
+          <span style="color:#4caf50">● 阿洛</span>
+          <span style="color:#2196f3">● 萨米拉</span>
+          <span style="color:#ff9800">● 铁砧</span>
+          <span style="color:#9c27b0">● 玛拉</span>
+          <span style="color:#00bcd4">● 帕克斯</span>
+        </div>
+      </section>
+
+      <!-- 中间：对话/事件 -->
+      <section id="center-panel">
+        <div id="message-log"></div>
+        <div id="chat-area" class="hidden">
+          <div id="chat-header">
+            <span id="chat-npc-name"></span>
+            <span id="chat-trust"></span>
+            <button id="btn-close-chat">✕</button>
+          </div>
+          <div id="chat-messages"></div>
+          <div id="chat-input-area">
+            <input id="chat-input" type="text" placeholder="说点什么……" />
+            <button id="btn-send">发送</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右侧：NPC 列表 + 背包 -->
+      <section id="right-panel">
+        <div id="npc-list">
+          <h3>👥 这里的人</h3>
+          <div id="npc-cards"></div>
+        </div>
+        <div id="inventory-panel">
+          <h3>🎒 背包</h3>
+          <div id="inventory-items"></div>
+        </div>
+        <button id="btn-collect" class="hidden">📦 领取配给</button>
+        <div id="echo-panel">
+          <h3>🔮 回声</h3>
+          <div id="echo-status"></div>
+          <div id="echo-messages"></div>
+          <div id="echo-input-area">
+            <input id="echo-input" type="text" placeholder="（内心对话）" />
+            <button id="btn-echo">💭</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 事件弹窗 -->
+    <div id="event-modal" class="hidden">
+      <div id="event-content">
+        <p id="event-text"></p>
+        <div id="event-choices"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="audio.js"></script>
+  <script src="map-canvas.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

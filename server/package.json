@@ -1,0 +1,31 @@
+{
+  "name": "reseed-server",
+  "version": "0.2.0",
+  "description": "ReSeed 后端 — Node.js + WebSocket + SmartNPC",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:prod": "NODE_ENV=production node dist/index.js",
+    "test:db": "ts-node src/database/test-database.ts",
+    "sim": "ts-node src/agents/simulation.ts",
+    "sim:fast": "ts-node src/agents/simulation.ts --fast",
+    "sim:morning": "ts-node src/agents/simulation.ts --ticks=6",
+    "chat": "ts-node src/llm/test-ezra-chat.ts chat",
+    "chat:test": "ts-node src/llm/test-ezra-chat.ts",
+    "play": "ts-node src/game/SeedCityCLI.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "dotenv": "^17.4.2",
+    "ws": "^8.20.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.18.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}
