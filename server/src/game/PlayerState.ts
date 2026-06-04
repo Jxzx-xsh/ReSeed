@@ -77,6 +77,9 @@ export class PlayerState {
   // 已触发事件
   public triggeredEvents: Set<string> = new Set();
 
+  // 访问过的位置（用于任务进度）
+  public visitedLocations: Set<string> = new Set();
+
   // 统计
   public totalChoices: number = 0;
   public secretsDiscovered: number = 0;
@@ -154,17 +157,17 @@ export class PlayerState {
         fragments: [
           { id: 'ct_1', topic: 'comms_tower', content: '通讯塔已损坏数月，种子城无法远程通信', source: '', day: 0, discovered: false },
           { id: 'ct_2', topic: 'comms_tower', content: '修复需要 5 个无线电零件', source: 'old_ezra', day: 0, discovered: false },
-          { id: 'ct_3', topic: 'comms_tower', content: '老埃兹拉在负责修理工作', source: '', day: 0, discovered: false },
+          { id: 'ct_3', topic: 'comms_tower', content: '老严在负责修理工作', source: '', day: 0, discovered: false },
           { id: 'ct_4', topic: 'comms_tower', content: '校准信号需要阿洛的技术协助', source: 'arlo', day: 0, discovered: false },
           { id: 'ct_5', topic: 'comms_tower', content: '通讯塔修好后可能收到北方定居点的求救信号', source: 'pax', day: 0, discovered: false },
         ],
       },
       {
         id: 'mara_secret',
-        title: '玛拉的秘密',
+        title: '苏漫的秘密',
         totalFragments: 4,
         fragments: [
-          { id: 'ms_1', topic: 'mara_secret', content: '玛拉深夜会独自前往某个地方', source: 'pax', day: 0, discovered: false },
+          { id: 'ms_1', topic: 'mara_secret', content: '苏漫深夜会独自前往某个地方', source: 'pax', day: 0, discovered: false },
           { id: 'ms_2', topic: 'mara_secret', content: '她与冰下灰灵"深渊低语"有通讯联系', source: '', day: 0, discovered: false },
           { id: 'ms_3', topic: 'mara_secret', content: '她用种子城情报交换旧世界加密数据', source: 'whisperer', day: 0, discovered: false },
           { id: 'ms_4', topic: 'mara_secret', content: '她的真名是玛尔塔，在找失散的弟弟', source: 'mara', day: 0, discovered: false },
@@ -172,7 +175,7 @@ export class PlayerState {
       },
       {
         id: 'ezra_secret',
-        title: '老埃兹拉的秘密',
+        title: '老严的秘密',
         totalFragments: 3,
         fragments: [
           { id: 'es_1', topic: 'ezra_secret', content: '他的左眼光学镜片有异常的电子信号', source: 'anvil', day: 0, discovered: false },
@@ -197,7 +200,7 @@ export class PlayerState {
         fragments: [
           { id: 'mc_1', topic: 'my_chip', content: '芯片使用旧世界军用加密，普通设备无法读取', source: '', day: 0, discovered: false },
           { id: 'mc_2', topic: 'my_chip', content: '回声井的量子计算机可能有足够算力解密', source: 'anvil', day: 0, discovered: false },
-          { id: 'mc_3', topic: 'my_chip', content: '玛拉声称她有解密密钥，但要求交换条件', source: 'mara', day: 0, discovered: false },
+          { id: 'mc_3', topic: 'my_chip', content: '苏漫声称她有解密密钥，但要求交换条件', source: 'mara', day: 0, discovered: false },
           { id: 'mc_4', topic: 'my_chip', content: '芯片内容是低语者的原始源代码——回声是它的碎片', source: '', day: 0, discovered: false },
         ],
       },

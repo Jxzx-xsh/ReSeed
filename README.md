@@ -41,16 +41,16 @@ ReSeed/
 │   │   │   ├── WorldState.ts         # 世界状态（时间、季节、事件）
 │   │   │   ├── simulation.ts         # 模拟运行入口
 │   │   │   └── profiles/             # NPC 人物配置
-│   │   │       ├── ezra-profile.ts   # 老埃兹拉
+│   │   │       ├── ezra-profile.ts   # 老严
 │   │   │       ├── arlo-profile.ts   # 阿洛
-│   │   │       ├── samira-profile.ts # 萨米拉
+│   │   │       ├── samira-profile.ts # 沈沫
 │   │   │       ├── anvil-profile.ts  # 铁砧
-│   │   │       ├── mara-profile.ts   # 玛拉
-│   │   │       ├── pax-profile.ts    # 帕克斯
+│   │   │       ├── mara-profile.ts   # 苏漫
+│   │   │       ├── pax-profile.ts    # 小白
 │   │   │       └── index.ts          # 统一导出
 │   │   ├── llm/                      # LLM 调用层
 │   │   │   ├── LLMClient.ts          # OpenAI API 兼容客户端
-│   │   │   ├── EzraPersonality.ts    # 老埃兹拉人格（对话/独白/决策）
+│   │   │   ├── EzraPersonality.ts    # 老严人格（对话/独白/决策）
 │   │   │   └── test-ezra-chat.ts     # 对话测试 & 交互模式
 │   │   ├── database/                 # 数据库封装
 │   │   │   ├── GameDatabase.ts       # SQLite 操作类
@@ -102,7 +102,7 @@ npm run sim
 # 快速模拟（无等待）
 npm run sim:fast
 
-# 和老埃兹拉聊天
+# 和老严聊天
 npm run chat
 ```
 

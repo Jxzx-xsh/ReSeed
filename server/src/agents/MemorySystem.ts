@@ -203,7 +203,7 @@ export class MemorySystem {
   }
 
   private extractEntity(message: string): string | undefined {
-    const names = ['老埃兹拉', '阿洛', '萨米拉', '铁砧', '玛拉', '帕克斯', '低语者', '玩家'];
+    const names = ['老严', '阿洛', '沈沫', '铁砧', '苏漫', '小白', '低语者', '玩家'];
     for (const name of names) {
       if (message.includes(name)) return name;
     }

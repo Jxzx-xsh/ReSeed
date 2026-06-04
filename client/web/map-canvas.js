@@ -173,12 +173,12 @@ function updateMapState(state) {
 
 function getNPCInitial(npcId) {
   const map = {
-    old_ezra: '埃',
+    old_ezra: '严',
     arlo: '洛',
-    samira: '萨',
+    samira: '沈',
     anvil: '砧',
-    mara: '玛',
-    pax: '帕',
+    mara: '苏',
+    pax: '白',
     whisperer: '语',
   };
   return map[npcId] || '?';

@@ -47,6 +47,11 @@ function bindEvents() {
     send({ type: 'collect' });
   };
 
+  // 搜索
+  document.getElementById('btn-search').onclick = () => {
+    send({ type: 'search' });
+  };
+
   // 回声对话
   document.getElementById('echo-input').onkeydown = (e) => {
     if (e.key === 'Enter') sendEcho();
@@ -88,6 +93,13 @@ function handleServerMessage(msg) {
     case 'collected':
       document.getElementById('btn-collect').classList.add('hidden');
       if (msg.state) updateFullState(msg.state);
+      break;
+    case 'searched':
+      if (msg.state) updateFullState(msg.state);
+      if (msg.foundItems && msg.foundItems.length > 0) {
+        const itemList = msg.foundItems.map(i => `  • ${i.qty}×「${i.name}」`).join('\n');
+        addLog(`🎁 搜索结果:\n${itemList}`, 'success');
+      }
       break;
     case 'chatHistory':
       // 加载历史对话
@@ -156,6 +168,7 @@ function updateFullState(state) {
   document.getElementById('day-display').textContent = `Day ${state.player.day}`;
   document.getElementById('time-display').textContent = `🕐 ${state.player.time || ''}`;
   document.getElementById('location-display').textContent = `📍 ${state.player.locationName}`;
+  document.getElementById('action-points-display').textContent = `⚡ ${state.player.actionPoints}/${state.player.maxActionPoints}`;
 
   // Canvas 地图
   if (window.updateMapState) window.updateMapState(state);
@@ -178,6 +191,18 @@ function updateFullState(state) {
     collectBtn.classList.remove('hidden');
   } else {
     collectBtn.classList.add('hidden');
+  }
+
+  // 搜索按钮（当前地点可搜索时显示）
+  const searchBtn = document.getElementById('btn-search');
+  const searchInfo = document.getElementById('search-info');
+  if (state.player.canSearch) {
+    searchBtn.classList.remove('hidden');
+    searchInfo.classList.remove('hidden');
+    searchInfo.textContent = '消耗 1 行动点，可无限搜索';
+  } else {
+    searchBtn.classList.add('hidden');
+    searchInfo.classList.add('hidden');
   }
 }
 
@@ -203,6 +228,7 @@ function renderNPCs(npcsHere) {
     }
 
     card.innerHTML = `
+      ${npc.avatar ? `<img class="npc-avatar" src="${npc.avatar}" alt="${npc.name}">` : ''}
       <div class="npc-name">${npc.name}${marker}</div>
       <div class="npc-info">${npc.activity} · ${npc.trust}</div>
     `;

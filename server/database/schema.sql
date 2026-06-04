@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS plan_alternatives (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   plan_id INTEGER NOT NULL REFERENCES npc_plans(id) ON DELETE CASCADE,
   step_index INTEGER NOT NULL,            -- 在哪个步骤触发的
-  description TEXT NOT NULL,              -- '求助铁砧协助', '从玛拉购买零件' 等
+  description TEXT NOT NULL,              -- '求助铁砧协助', '从苏漫购买零件' 等
   applied BOOLEAN NOT NULL DEFAULT TRUE,
   result TEXT,                            -- 'success' / 'failed'
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -245,10 +245,10 @@ CREATE INDEX idx_memories_strength ON npc_memories(npc_id, current_strength DESC
 INSERT OR IGNORE INTO world_state (id, current_day, current_hour, season)
 VALUES (1, 1, 0, 'ash');
 
--- 老埃兹拉
+-- 老严
 INSERT OR IGNORE INTO npcs (id, display_name, inventory) VALUES (
   'old_ezra',
-  '老埃兹拉 (Old Ezra)',
+  '老严 (Old Ezra)',
   '{"radioParts": 0, "credits": 120, "nuclearBattery": 1, "scrapMetal": 3, "tools": 2}'
 );
 
@@ -259,10 +259,10 @@ INSERT OR IGNORE INTO npcs (id, display_name, inventory) VALUES (
   '{"credits": 40, "seeds": 12, "tools": 1}'
 );
 
--- 萨米拉
+-- 沈沫
 INSERT OR IGNORE INTO npcs (id, display_name, inventory) VALUES (
   'samira',
-  '萨米拉 (Samira)',
+  '沈沫 (Samira)',
   '{"credits": 60, "waterFilters": 3, "tools": 2}'
 );
 
@@ -273,17 +273,17 @@ INSERT OR IGNORE INTO npcs (id, display_name, inventory) VALUES (
   '{"credits": 0, "scrapMetal": 10, "tools": 8}'
 );
 
--- 玛拉
+-- 苏漫
 INSERT OR IGNORE INTO npcs (id, display_name, inventory) VALUES (
   'mara',
-  '玛拉 (Mara)',
+  '苏漫 (Mara)',
   '{"credits": 500, "radioParts": 20, "nuclearBattery": 2, "contraband": 5}'
 );
 
--- 帕克斯
+-- 小白
 INSERT OR IGNORE INTO npcs (id, display_name, inventory) VALUES (
   'pax',
-  '帕克斯 (Pax)',
+  '小白 (Pax)',
   '{"credits": 25, "letters": 7, "tools": 1}'
 );
 
@@ -312,7 +312,7 @@ INSERT OR IGNORE INTO npc_relationships (npc_id, target_id, affinity, trust, not
   ('arlo', 'samira', 60, 40, '暗恋，但害羞'),
   ('samira', 'arlo', 30, 50, '假装不知道他的心意');
 
--- 老埃兹拉的长期目标
+-- 老严的长期目标
 INSERT OR IGNORE INTO npc_goals (id, npc_id, goal_type, priority, active) VALUES
   ('old_ezra:repair_comms_tower', 'old_ezra', 'repair_comms_tower', 10, TRUE),
   ('old_ezra:collect_batteries', 'old_ezra', 'collect_batteries', 8, TRUE),

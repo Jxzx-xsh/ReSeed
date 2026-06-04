@@ -32,14 +32,14 @@ interface Location {
 }
 
 const LOCATIONS: Location[] = [
-  { id: 'tent', name: '北区帐篷', description: '旧科考站集装箱和帐篷混合搭建的居住区。老埃兹拉和帕克斯住在这里。铁砧的维修棚也在附近。', connections: ['plaza', 'echo_well', 'greenhouse'] },
+  { id: 'tent', name: '北区帐篷', description: '旧科考站集装箱和帐篷混合搭建的居住区。老严和小白住在这里。铁砧的维修棚也在附近。', connections: ['plaza', 'echo_well', 'greenhouse'] },
   { id: 'plaza', name: '中心广场', description: '种子城的核心，地热井口冒着白雾。锈蚀议会的帐篷立在一旁，几块生锈的公告牌上贴满了配给通知。', connections: ['tent', 'market', 'water', 'greenhouse'] },
   { id: 'greenhouse', name: '穹顶绿洲', description: '半圆形穹顶温室，透光材料修补过多次。LED灯管发出紫粉色的光，水培架上长满了螺旋藻和土豆苗。空气湿润温暖。', connections: ['tent', 'plaza'] },
-  { id: 'water', name: '净水站', description: '金属集装箱改造的建筑，管道纵横。萨米拉的水质检测仪嗡嗡作响，墙上贴着严格的取水时间表。', connections: ['plaza', 'south_gate'] },
+  { id: 'water', name: '净水站', description: '金属集装箱改造的建筑，管道纵横。沈沫的水质检测仪嗡嗡作响，墙上贴着严格的取水时间表。', connections: ['plaza', 'south_gate'] },
   { id: 'market', name: '黑冰市场', description: '天然岩洞入口，内部用荧光苔藓照明，散发幽绿色的光。各种摊位摆满了旧零件、药品和来路不明的物资。', connections: ['plaza', 'echo_well'] },
   { id: 'echo_well', name: '回声井', description: '被铁栅栏围住的竖井，深不见底。冷雾从井口涌出，偶尔能听到低沉的电子嗡鸣。铁栅栏上挂着"危险"标志。', connections: ['tent', 'market'] },
   { id: 'ruins', name: '废墟区', description: '锈蚀的钢铁骨架在灰色天空下矗立。风吹过时发出金属呻吟。地面散落着旧电路板和碎玻璃。', connections: ['south_gate', 'tent'] },
-  { id: 'south_gate', name: '南门', description: '种子城唯一的出入口。简易哨塔上有人值守，远处是无尽的冰架。帕克斯每次出发都从这里离开。', connections: ['water', 'ruins'] },
+  { id: 'south_gate', name: '南门', description: '种子城唯一的出入口。简易哨塔上有人值守，远处是无尽的冰架。小白每次出发都从这里离开。', connections: ['water', 'ruins'] },
 ];
 
 // ============================================================
@@ -305,7 +305,7 @@ class SeedCityCLI {
       // LLM 失败，回退
     }
 
-    console.log('  [不太明白你的意思。试试：去中心广场、找老埃兹拉、看背包、查笔记]');
+    console.log('  [不太明白你的意思。试试：去中心广场、找老严、看背包、查笔记]');
   }
 
   // ============================================================
@@ -400,7 +400,7 @@ class SeedCityCLI {
     if (locId === 'water') {
       this.player.triggeredEvents.add(rationKey);
       this.player.inventory['净水'] = (this.player.inventory['净水'] ?? 0) + 2;
-      console.log('  萨米拉在本子上划了一笔，递给你一个水壶。');
+      console.log('  沈沫在本子上划了一笔，递给你一个水壶。');
       console.log('  "2 升，别洒了。明天同一时间。"');
       console.log('  📦 获得: 净水 ×2');
       this.player.changeRelationship('samira', 1);

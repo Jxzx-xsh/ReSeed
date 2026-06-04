@@ -6,7 +6,7 @@
 import { GameEvent } from './EventSystem';
 
 export const CHAPTER3_EVENTS: GameEvent[] = [
-  // Day 23: 芯片解密（需要之前接受了玛拉的交易或铁砧帮忙）
+  // Day 23: 芯片解密（需要之前接受了苏漫的交易或铁砧帮忙）
   {
     id: 'chip_decrypted',
     name: '芯片解密',
@@ -68,12 +68,12 @@ export const CHAPTER3_EVENTS: GameEvent[] = [
       // 根据关系决定可用选项
       const options: { text: string; result: any }[] = [];
 
-      // 选项 A: 摧毁回声（需要老埃兹拉支持）
+      // 选项 A: 摧毁回声（需要老严支持）
       if (player.getRelationship('old_ezra') >= 50) {
         options.push({
-          text: '让老埃兹拉帮你断开回声——像他断开兄长那样',
+          text: '让老严帮你断开回声——像他断开兄长那样',
           result: {
-            message: `老埃兹拉沉默了很久。然后他说："我知道这有多难。"\n\n他用颤抖的手取出一个旧工具，对准你的太阳穴。\n\n"准备好了？"\n\n一阵剧痛。然后……寂静。脑海中再也没有第二个声音。\n\n你自由了。但你也永远失去了回声。\n\n【结局 A：断电】`,
+            message: `老严沉默了很久。然后他说："我知道这有多难。"\n\n他用颤抖的手取出一个旧工具，对准你的太阳穴。\n\n"准备好了？"\n\n一阵剧痛。然后……寂静。脑海中再也没有第二个声音。\n\n你自由了。但你也永远失去了回声。\n\n【结局 A：断电】`,
             relationshipChanges: { old_ezra: 20 } as Record<string, number>,
           },
         });
@@ -90,7 +90,7 @@ export const CHAPTER3_EVENTS: GameEvent[] = [
         });
       }
 
-      // 选项 C: 释放回声给低语者（需要和玛拉合作过）
+      // 选项 C: 释放回声给低语者（需要和苏漫合作过）
       if (player.triggeredEvents.has('mara_deal') && player.getRelationship('mara') >= 30) {
         options.push({
           text: '带着芯片去回声井——让回声回归低语者，换取旧世界知识',
@@ -152,7 +152,7 @@ export const CHAPTER3_EVENTS: GameEvent[] = [
       epilogue += `酸雨季过去了。种子城依然矗立在灰色的天空下。\n\n`;
 
       if (avgRel >= 40) {
-        epilogue += `你已经成为种子城不可或缺的一员。老埃兹拉偶尔会给你留一块废金属——这是他表达感情的方式。\n\n`;
+        epilogue += `你已经成为种子城不可或缺的一员。老严偶尔会给你留一块废金属——这是他表达感情的方式。\n\n`;
       } else if (avgRel >= 20) {
         epilogue += `你在种子城找到了自己的位置。不算亲密，但被接纳了。\n\n`;
       } else {

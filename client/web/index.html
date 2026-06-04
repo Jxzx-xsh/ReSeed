@@ -13,6 +13,7 @@
       <span id="day-display">Day 1</span>
       <span id="time-display">🕐 00:00</span>
       <span id="location-display">📍 南门</span>
+      <span id="action-points-display">⚡ 5/5</span>
       <button id="btn-audio" title="开启音效">🔇</button>
     </header>
 
@@ -23,12 +24,12 @@
         <h3>种子城</h3>
         <canvas id="map-canvas"></canvas>
         <div id="map-legend">
-          <span style="color:#e94560">● 埃兹拉</span>
+          <span style="color:#e94560">● 老严</span>
           <span style="color:#4caf50">● 阿洛</span>
-          <span style="color:#2196f3">● 萨米拉</span>
+          <span style="color:#2196f3">● 沈沫</span>
           <span style="color:#ff9800">● 铁砧</span>
-          <span style="color:#9c27b0">● 玛拉</span>
-          <span style="color:#00bcd4">● 帕克斯</span>
+          <span style="color:#9c27b0">● 苏漫</span>
+          <span style="color:#00bcd4">● 小白</span>
         </div>
       </section>
 
@@ -67,6 +68,8 @@
           <div id="inventory-items"></div>
         </div>
         <button id="btn-collect" class="hidden">📦 领取配给</button>
+        <button id="btn-search" class="hidden">🔍 搜索此地</button>
+        <div id="search-info" class="hidden" style="font-size:10px;color:#888;margin-top:4px"></div>
         <div id="echo-panel">
           <h3>🔮 回声</h3>
           <div id="echo-status"></div>

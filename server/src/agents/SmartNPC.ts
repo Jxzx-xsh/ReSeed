@@ -36,6 +36,7 @@ export interface NPCProfile {
     thirstRate?: number;   // 口渴衰减速率 (默认 4)
     energyRate?: number;   // 精力衰减速率 (默认 2)
   };
+  avatar?: string;           // SVG 头像数据
 }
 
 export interface GoalDef {
@@ -203,13 +204,13 @@ export class SmartNPC {
         this.generateThought('太累了，得歇会儿');
         break;
       case 'drink':
-        this.location = '净水站';
+        this.location = 'water';
         this.thirst = Math.min(100, this.thirst + 40);
         this.addLog('action', '去净水站取水');
         this.generateThought('渴得嗓子冒烟');
         break;
       case 'eat':
-        this.location = '穹顶绿洲';
+        this.location = 'greenhouse';
         this.hunger = Math.min(100, this.hunger + 35);
         this.addLog('action', '去穹顶绿洲领取食物配给');
         this.generateThought('肚子在叫了');

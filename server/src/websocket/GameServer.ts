@@ -27,15 +27,46 @@ const CLIENT_DIR = path.join(__dirname, '..', '..', '..', 'client', 'web');
 // ============================================================
 
 const LOCATIONS = [
-  { id: 'tent', name: '北区帐篷', desc: '居住区，老埃兹拉和帕克斯住这里' },
+  { id: 'tent', name: '北区帐篷', desc: '居住区，老严和小白住这里' },
   { id: 'plaza', name: '中心广场', desc: '种子城核心，锈蚀议会所在地' },
   { id: 'greenhouse', name: '穹顶绿洲', desc: '阿洛的温室农场' },
-  { id: 'water', name: '净水站', desc: '萨米拉管理的水处理设施' },
-  { id: 'market', name: '黑冰市场', desc: '玛拉的地下交易所' },
+  { id: 'water', name: '净水站', desc: '沈沫管理的水处理设施' },
+  { id: 'market', name: '黑冰市场', desc: '苏漫的地下交易所' },
   { id: 'echo_well', name: '回声井', desc: '低语者栖居的深井，危险' },
   { id: 'ruins', name: '废墟区', desc: '锈蚀废墟，有资源也有危险' },
   { id: 'south_gate', name: '南门', desc: '种子城唯一出入口' },
 ];
+
+const LOCATION_ITEMS: Record<string, {
+  items: Array<{ id: string; name: string; chance: number; minQty: number; maxQty: number; description: string }>;
+}> = {
+  ruins: {
+    items: [
+      { id: '无线电零件', name: '无线电零件', chance: 0.4, minQty: 1, maxQty: 2, description: '锈蚀但还能用的电子元件' },
+      { id: '防锈布', name: '防锈布', chance: 0.5, minQty: 1, maxQty: 3, description: '浸透防锈油的旧布条' },
+      { id: '信用点', name: '信用点', chance: 0.3, minQty: 5, maxQty: 15, description: '散落的旧货币' },
+      { id: '废铁', name: '废铁', chance: 0.6, minQty: 1, maxQty: 5, description: '可以卖给铁砧的金属碎片' },
+    ],
+  },
+  market: {
+    items: [
+      { id: '无线电零件', name: '无线电零件', chance: 0.3, minQty: 1, maxQty: 1, description: '苏漫的黑市有存货，但价格不菲' },
+      { id: '防锈布', name: '防锈布', chance: 0.4, minQty: 1, maxQty: 2, description: '品相不错的防锈布' },
+      { id: '净水', name: '净水', chance: 0.2, minQty: 1, maxQty: 2, description: '过滤后的干净水' },
+    ],
+  },
+  echo_well: {
+    items: [
+      { id: '旧数据芯片', name: '旧数据芯片', chance: 0.2, minQty: 1, maxQty: 1, description: '刻着奇怪符号的芯片碎片' },
+      { id: '信用点', name: '信用点', chance: 0.1, minQty: 10, maxQty: 30, description: '深井底部的遗物' },
+    ],
+  },
+  tent: {
+    items: [
+      { id: '废铁', name: '废铁', chance: 0.3, minQty: 1, maxQty: 2, description: '帐篷角落里的金属废料' },
+    ],
+  },
+};
 
 // ============================================================
 // 游戏服务器
@@ -214,6 +245,15 @@ export class GameServer {
       case 'getState':
         this.send(ws, 'state', this.getFullState());
         break;
+      case 'search':
+        await this.handleSearch(ws);
+        break;
+      case 'questNavigate':
+        this.handleQuestNavigate(ws, msg.questId);
+        break;
+      case 'questAutoComplete':
+        this.handleQuestAutoComplete(ws, msg.questId);
+        break;
     }
   }
 
@@ -262,6 +302,15 @@ export class GameServer {
 
     const actualMessage = message.replace('__continue__', '');
 
+    // 检查是否是任务相关的对话
+    const taskKeywords = ['任务', '接任务', '交付任务', '提交任务', '完成任务', '领取奖励'];
+    const isTaskRelated = taskKeywords.some(keyword => actualMessage.includes(keyword));
+
+    if (isTaskRelated) {
+      await this.handleQuestInChat(ws, npcId, npc, actualMessage);
+      return;
+    }
+
     // 锁定 NPC 位置（不暂停世界，因为用不同的 LLM）
     this.lockedNpcId = npcId;
 
@@ -308,8 +357,121 @@ export class GameServer {
     }
   }
 
+  private async handleQuestInChat(ws: WebSocket, npcId: string, npc: SmartNPC, message: string): Promise<void> {
+    // 检查是否有可交付的任务
+    const readyQuests = this.questSystem.getQuestsByGiver(npcId).filter(q => q.status === 'ready');
+    
+    // 检查是否有可接的任务
+    const availableQuests = this.questSystem.getQuestsByGiver(npcId).filter(q => q.status === 'available');
+
+    if (message.includes('交付') || message.includes('提交') || message.includes('完成') || message.includes('领取奖励')) {
+      // 尝试交付任务
+      if (readyQuests.length > 0) {
+        const quest = readyQuests[0];
+        const result = this.questSystem.submit(quest.id, this.player, this.npcs);
+        
+        if (result) {
+          // 检查位置错误
+          if (result.error === 'not_at_location') {
+            const reply = npc.name + '的声音从通讯器传来："我现在不在你身边，等见面了再交付吧。"';
+            
+            this.send(ws, 'npcReply', {
+              npcId,
+              npcName: npc.name,
+              reply,
+              trustLevel: getTrustLevelCN(this.player.getTrustLevel(npcId)),
+              state: this.getFullState(),
+            });
+            
+            this.send(ws, 'message', { text: '需要和' + npc.name + '在同一位置才能交付任务！', type: 'warning' });
+          } else {
+            let rewardText = '';
+            if (result.reward.relationships && result.reward.relationships[npcId]) {
+              rewardText += '\n好感度 +' + result.reward.relationships[npcId];
+            }
+            if (result.reward.items) {
+              for (const [item, qty] of Object.entries(result.reward.items)) {
+                rewardText += '\n' + item + ' +' + qty;
+              }
+            }
+            
+            const reply = npc.name + '点点头："做得好。"' + rewardText;
+            
+            this.send(ws, 'npcReply', {
+              npcId,
+              npcName: npc.name,
+              reply,
+              trustLevel: getTrustLevelCN(this.player.getTrustLevel(npcId)),
+              state: this.getFullState(),
+            });
+            
+            this.send(ws, 'message', { text: '任务「' + quest.name + '」已完成！', type: 'success' });
+          }
+        } else {
+          this.send(ws, 'npcReply', {
+            npcId,
+            npcName: npc.name,
+            reply: npc.name + '疑惑地看着你："你说的任务还没完成吧？"',
+            trustLevel: getTrustLevelCN(this.player.getTrustLevel(npcId)),
+            state: this.getFullState(),
+          });
+        }
+      } else {
+        this.send(ws, 'npcReply', {
+          npcId,
+          npcName: npc.name,
+          reply: npc.name + '想了想："我这里没有你能交付的任务。"',
+          trustLevel: getTrustLevelCN(this.player.getTrustLevel(npcId)),
+          state: this.getFullState(),
+        });
+      }
+    } else if (message.includes('接任务') || message.includes('任务')) {
+      // 尝试接任务
+      if (availableQuests.length > 0) {
+        const quest = availableQuests[0];
+        const accepted = this.questSystem.accept(quest.id, this.player);
+        
+        if (accepted) {
+          const objectivesText = quest.objectives.map(o => '• ' + o.description).join('\n');
+          const reply = npc.name + '说道："' + quest.description + '"\n\n任务目标：\n' + objectivesText;
+          
+          this.send(ws, 'npcReply', {
+            npcId,
+            npcName: npc.name,
+            reply,
+            trustLevel: getTrustLevelCN(this.player.getTrustLevel(npcId)),
+            state: this.getFullState(),
+          });
+          
+          this.send(ws, 'message', { text: '接受任务「' + quest.name + '」！', type: 'success' });
+        }
+      } else if (readyQuests.length > 0) {
+        this.send(ws, 'npcReply', {
+          npcId,
+          npcName: npc.name,
+          reply: npc.name + '微笑道："你之前接的任务已经完成了，快交付吧！"',
+          trustLevel: getTrustLevelCN(this.player.getTrustLevel(npcId)),
+          state: this.getFullState(),
+        });
+      } else {
+        this.send(ws, 'npcReply', {
+          npcId,
+          npcName: npc.name,
+          reply: npc.name + '摇摇头："目前没有适合你的任务。"',
+          trustLevel: getTrustLevelCN(this.player.getTrustLevel(npcId)),
+          state: this.getFullState(),
+        });
+      }
+    }
+  }
+
   private handleCollect(ws: WebSocket): void {
+    console.log(`[DEBUG] 收到领取物资请求`);
+    console.log(`[DEBUG] 玩家位置: ${this.player.location}`);
+    
     const rationKey = `ration_day_${this.player.day}`;
+    console.log(`[DEBUG] 是否已领取: ${this.player.triggeredEvents.has(rationKey)}`);
+    
     if (this.player.triggeredEvents.has(rationKey)) {
       this.send(ws, 'message', { text: '今天已经领过配给了', type: 'info' });
       return;
@@ -319,7 +481,7 @@ export class GameServer {
     if (loc === 'water') {
       this.player.triggeredEvents.add(rationKey);
       this.player.inventory['净水'] = (this.player.inventory['净水'] ?? 0) + 2;
-      this.send(ws, 'message', { text: '萨米拉递给你水壶："2升，别洒了。"', type: 'success' });
+      this.send(ws, 'message', { text: '沈沫递给你水壶："2升，别洒了。"', type: 'success' });
     } else if (loc === 'greenhouse') {
       this.player.triggeredEvents.add(rationKey);
       this.player.inventory['干粮'] = (this.player.inventory['干粮'] ?? 0) + 1;
@@ -331,6 +493,50 @@ export class GameServer {
 
     // 领取后发送更新状态 + 隐藏按钮信号
     this.send(ws, 'collected', { state: this.getFullState() });
+  }
+
+  private async handleSearch(ws: WebSocket): Promise<void> {
+    const loc = this.player.location;
+
+    const locationData = LOCATION_ITEMS[loc];
+    if (!locationData || locationData.items.length === 0) {
+      this.send(ws, 'message', { text: '这里没什么可搜索的。', type: 'info' });
+      return;
+    }
+
+    if (!this.player.canAct(1)) {
+      this.send(ws, 'message', { text: '行动点不足，无法搜索。休息一下再行动吧。', type: 'warning' });
+      return;
+    }
+
+    this.player.spendAction(1);
+
+    const foundItems: Array<{ name: string; qty: number; description: string }> = [];
+    const messages: string[] = [];
+
+    for (const itemDef of locationData.items) {
+      if (Math.random() < itemDef.chance) {
+        const qty = Math.floor(Math.random() * (itemDef.maxQty - itemDef.minQty + 1)) + itemDef.minQty;
+        this.player.inventory[itemDef.id] = (this.player.inventory[itemDef.id] ?? 0) + qty;
+        foundItems.push({ name: itemDef.name, qty, description: itemDef.description });
+        messages.push('发现了 ' + qty + ' 个「' + itemDef.name + '」');
+      }
+    }
+
+    if (foundItems.length === 0) {
+      messages.push('翻找了一番，什么有价值的东西都没找到……');
+    }
+
+    const messagesText = messages.join('\n');
+    this.send(ws, 'message', { text: messagesText, type: foundItems.length > 0 ? 'success' : 'info' });
+
+    const questUpdates = this.questSystem.update(this.player, this.npcs);
+    this.sendQuestUpdates(ws, questUpdates);
+
+    this.send(ws, 'searched', {
+      foundItems,
+      state: this.getFullState(),
+    });
   }
 
   private handleEventChoice(ws: WebSocket, choiceIndex: number): void {
@@ -397,7 +603,7 @@ export class GameServer {
   }
 
   private handleQuestDecline(ws: WebSocket, questId: string): void {
-    const quest = this.questSystem.decline(questId);
+    const quest = this.questSystem.decline(questId, this.player);
     if (quest) {
       // 拒绝任务可能影响好感
       this.player.changeRelationship(quest.giver, -5);
@@ -409,15 +615,28 @@ export class GameServer {
   }
 
   private handleQuestSubmit(ws: WebSocket, npcId: string): void {
+    console.log(`[DEBUG] 收到任务提交请求: npcId=${npcId}`);
+    
     const readyQuests = this.questSystem.getReadyForNPC(npcId);
+    console.log(`[DEBUG] 找到 ready 任务: ${readyQuests.length} 个`);
+    
     if (readyQuests.length === 0) {
       this.send(ws, 'message', { text: '没有可以交付的任务。', type: 'info' });
       return;
     }
 
     // 提交第一个可交付的任务
-    const result = this.questSystem.submit(readyQuests[0].id, this.player);
+    console.log(`[DEBUG] 提交任务: ${readyQuests[0].id}`);
+    console.log(`[DEBUG] 玩家位置: ${this.player.location}`);
+    const npc = this.npcs.find(n => n.id === npcId);
+    console.log(`[DEBUG] NPC位置: ${npc?.location}`);
+    
+    const result = this.questSystem.submit(readyQuests[0].id, this.player, this.npcs);
     if (result) {
+      if (result.error === 'not_at_location') {
+        this.send(ws, 'message', { text: '你需要与委托人在同一位置才能交付任务。', type: 'warning' });
+        return;
+      }
       this.send(ws, 'questSubmitted', {
         quest: this.serializeQuest(result.quest),
         reward: result.reward,
@@ -644,6 +863,58 @@ export class GameServer {
   }
 
   // ============================================================
+  // 任务导航与自动完成系统
+  // ============================================================
+
+  /**
+   * 获取任务导航信息（用于自动寻路）
+   */
+  private handleQuestNavigate(ws: WebSocket, questId: string): void {
+    const nav = this.questSystem.getQuestNavigation(questId, this.player, this.npcs);
+    
+    if (nav) {
+      this.send(ws, 'questNavigation', {
+        ...nav,
+        currentLocation: this.player.location,
+        currentLocationName: LOCATIONS.find(l => l.id === this.player.location)?.name ?? '',
+      });
+    } else {
+      this.send(ws, 'error', { message: '无法获取任务导航信息' });
+    }
+  }
+
+  /**
+   * 自动完成任务步骤
+   */
+  private handleQuestAutoComplete(ws: WebSocket, questId: string): void {
+    const result = this.questSystem.autoCompleteStep(questId, this.player, this.npcs);
+    
+    if (result.updated) {
+      this.send(ws, 'message', { text: result.message, type: 'success' });
+      
+      // 更新任务状态
+      this.send(ws, 'questUpdate', {
+        quests: this.questSystem.getActiveQuests().map(q => this.serializeQuest(q)),
+        markers: this.questSystem.getNPCQuestMarkers(),
+      });
+      
+      // 如果任务已准备好交付，自动导航到交付位置
+      if (result.quest?.status === 'ready') {
+        const nav = this.questSystem.getQuestNavigation(questId, this.player, this.npcs);
+        if (nav) {
+          this.send(ws, 'questNavigation', {
+            ...nav,
+            currentLocation: this.player.location,
+            currentLocationName: LOCATIONS.find(l => l.id === this.player.location)?.name ?? '',
+          });
+        }
+      }
+    } else {
+      this.send(ws, 'message', { text: result.message, type: 'info' });
+    }
+  }
+
+  // ============================================================
   // 世界持续运行
   // ============================================================
 
@@ -854,7 +1125,8 @@ export class GameServer {
       if (data.player) {
         this.player.name = data.player.name ?? '旅人';
         this.player.location = data.player.location ?? 'south_gate';
-        this.player.day = data.player.day ?? 1;
+        // 玩家天数必须与世界天数同步
+        this.player.day = this.world.currentDay;
         this.player.inventory = data.player.inventory ?? {};
         this.player.relationships = data.player.relationships ?? {};
         this.player.triggeredEvents = new Set(data.player.triggeredEvents ?? []);
@@ -862,12 +1134,27 @@ export class GameServer {
         if (data.player.notebook) this.player.notebook = data.player.notebook;
       }
 
+      // 位置名称映射（中文到英文ID）- 用于兼容旧存档
+      const locationMapping: Record<string, string> = {
+        '北区帐篷': 'tent',
+        '中心广场': 'plaza',
+        '黑冰市场': 'market',
+        '净水站': 'water',
+        '穹顶绿洲': 'greenhouse',
+        '回声井': 'echo_well',
+        '南门': 'south_gate',
+        '废墟区': 'ruins',
+      };
+
       // 恢复 NPC
       if (data.npcs) {
         for (const saved of data.npcs as any[]) {
           const npc = this.npcs.find(n => n.id === saved.id);
           if (npc) {
-            npc.location = saved.location ?? npc.location;
+            // 转换中文位置为英文ID
+            let location = saved.location ?? npc.location;
+            location = locationMapping[location] || location;
+            npc.location = location;
             npc.mood = saved.mood ?? npc.mood;
             npc.hunger = saved.hunger ?? npc.hunger;
             npc.thirst = saved.thirst ?? npc.thirst;
@@ -911,14 +1198,19 @@ export class GameServer {
       return npcLoc === locId;
     });
 
+    const canSearch = LOCATION_ITEMS[locId]?.items.length > 0;
+
     return {
       player: {
         location: locId,
         locationName: LOCATIONS.find(l => l.id === locId)?.name ?? '',
         day: this.world.currentDay,
         time: this.world.getTimeStr(),
+        actionPoints: this.player.actionPoints,
+        maxActionPoints: this.player.maxActionPoints,
         inventory: this.player.inventory,
         collectedToday: this.player.triggeredEvents.has(`ration_day_${this.player.day}`),
+        canSearch,
       },
       locations: LOCATIONS,
       npcsHere: npcsHere.map(n => ({
@@ -927,12 +1219,14 @@ export class GameServer {
         mood: n.mood,
         activity: n.getCurrentActivity(),
         trust: getTrustLevelCN(this.player.getTrustLevel(n.id)),
+        avatar: (n as any).profile?.avatar ?? null,
       })),
       allNpcs: this.npcs.map(n => ({
         id: n.id,
         name: n.name,
         location: n.location,
         mood: n.mood,
+        avatar: (n as any).profile?.avatar ?? null,
       })),
       worldLog: this.npcs.flatMap(n => n.getLog().slice(-2).map(l => ({
         npc: n.name,

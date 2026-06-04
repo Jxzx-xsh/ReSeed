@@ -40,18 +40,18 @@ export const CHAPTER2_EVENTS: GameEvent[] = [
     repeatable: false,
   },
 
-  // 跟踪玛拉（需要在黑冰市场且好感不够高）
+  // 跟踪苏漫（需要在黑冰市场且好感不够高）
   {
     id: 'mara_night_activity',
-    name: '玛拉的深夜行踪',
-    description: '你发现玛拉深夜的秘密',
+    name: '苏漫的深夜行踪',
+    description: '你发现苏漫深夜的秘密',
     triggerCondition: (p) => {
       return p.day >= 12 && p.location === 'market' && p.triggeredEvents.has('pax_mentions_mara') && !p.triggeredEvents.has('mara_night_activity');
     },
     onTrigger: (player) => {
       player.discoverFragment('ms_2', '观察');
       return {
-        message: `深夜，你躲在岩洞暗处。玛拉关闭了最后一个摊位的灯，但她没有回住处——而是朝回声井方向走去。\n\n你跟在后面，看到她在井口附近停下，从飞行服内袋取出一个小型终端。屏幕发出幽蓝色的光。\n\n她对着终端低声说了什么，然后等待。片刻后，井口的冷雾中闪过一串蓝色光点——像是在回应。\n\n她在和回声井里的东西通讯。和低语者。`,
+        message: `深夜，你躲在岩洞暗处。苏漫关闭了最后一个摊位的灯，但她没有回住处——而是朝回声井方向走去。\n\n你跟在后面，看到她在井口附近停下，从飞行服内袋取出一个小型终端。屏幕发出幽蓝色的光。\n\n她对着终端低声说了什么，然后等待。片刻后，井口的冷雾中闪过一串蓝色光点——像是在回应。\n\n她在和回声井里的东西通讯。和低语者。`,
         fragmentsDiscovered: ['ms_2'],
       };
     },
@@ -67,17 +67,17 @@ export const CHAPTER2_EVENTS: GameEvent[] = [
     triggerCondition: (p) => p.day >= 18 && !p.triggeredEvents.has('acid_rain_warning'),
     onTrigger: (player) => {
       return {
-        message: `广播突然响起铁砧的声音：\n\n"全体居民注意。气象数据分析完毕。酸雨季将在 7 天后到达。预计持续 14 天。pH 值预估 3.2。未加固区域将遭受严重腐蚀。"\n\n中心广场瞬间炸开了锅。老埃兹拉拍桌子："通讯塔还没修好！没有预警系统我们就是瞎子！"\n萨米拉冷静地说："水管必须全部包裹防腐层。我需要人手。"\n阿洛焦急："穹顶如果被酸蚀穿，所有作物都完了……"\n\n种子城进入紧急状态。你有 7 天时间帮助他们。`,
+        message: `广播突然响起铁砧的声音：\n\n"全体居民注意。气象数据分析完毕。酸雨季将在 7 天后到达。预计持续 14 天。pH 值预估 3.2。未加固区域将遭受严重腐蚀。"\n\n中心广场瞬间炸开了锅。老严拍桌子："通讯塔还没修好！没有预警系统我们就是瞎子！"\n沈沫冷静地说："水管必须全部包裹防腐层。我需要人手。"\n阿洛焦急："穹顶如果被酸蚀穿，所有作物都完了……"\n\n种子城进入紧急状态。你有 7 天时间帮助他们。`,
       };
     },
     repeatable: false,
   },
 
-  // Day 20: 玛拉的交易提议
+  // Day 20: 苏漫的交易提议
   {
     id: 'mara_deal',
-    name: '玛拉的交易',
-    description: '玛拉提出帮你解密芯片的条件',
+    name: '苏漫的交易',
+    description: '苏漫提出帮你解密芯片的条件',
     triggerDay: 20,
     triggerCondition: (p) => {
       return p.day >= 20 && p.getRelationship('mara') >= 20 && p.triggeredEvents.has('anvil_mentions_chip') && !p.triggeredEvents.has('mara_deal');
@@ -85,14 +85,14 @@ export const CHAPTER2_EVENTS: GameEvent[] = [
     onTrigger: (player) => {
       player.discoverFragment('mc_3', 'mara');
       return {
-        message: `玛拉把你拉到黑冰市场的角落，压低声音：\n\n"我知道你有个加密芯片。我也知道你找不到人解密。"\n\n她的银白短发在荧光苔藓的光下泛着幽绿："我有密钥。旧世界军方的。别问我怎么来的。"\n\n"条件很简单——帮我从回声井取一份数据。低语者那里有我需要的东西。你进去，拿到数据，我给你密钥。"\n\n她笑了笑："当然，你也可以拒绝。但你那芯片里的东西……你真的不想知道吗？"`,
+        message: `苏漫把你拉到黑冰市场的角落，压低声音：\n\n"我知道你有个加密芯片。我也知道你找不到人解密。"\n\n她的银白短发在荧光苔藓的光下泛着幽绿："我有密钥。旧世界军方的。别问我怎么来的。"\n\n"条件很简单——帮我从回声井取一份数据。低语者那里有我需要的东西。你进去，拿到数据，我给你密钥。"\n\n她笑了笑："当然，你也可以拒绝。但你那芯片里的东西……你真的不想知道吗？"`,
         fragmentsDiscovered: ['mc_3'],
         choiceRequired: {
-          prompt: '玛拉的交易：',
+          prompt: '苏漫的交易：',
           options: [
-            { text: '接受——帮她从回声井取数据', result: { message: '玛拉满意地点头："聪明人。等酸雨季过后，我们行动。"', relationshipChanges: { mara: 15 } as Record<string, number> } },
-            { text: '拒绝——不想和灰灵扯上关系', result: { message: '玛拉耸肩："随你。但那芯片的秘密，迟早会找上你的。"', relationshipChanges: { mara: -10 } as Record<string, number> } },
-            { text: '告诉她你已经知道她和低语者的关系', result: { message: '玛拉的笑容僵住了。"……你跟踪我了？"她的眼神变得危险，"好吧，那我们就开诚布公。但你最好别把这事告诉老埃兹拉。"', relationshipChanges: { mara: -5 } as Record<string, number>, fragmentsDiscovered: ['ms_3'] } },
+            { text: '接受——帮她从回声井取数据', result: { message: '苏漫满意地点头："聪明人。等酸雨季过后，我们行动。"', relationshipChanges: { mara: 15 } as Record<string, number> } },
+            { text: '拒绝——不想和灰灵扯上关系', result: { message: '苏漫耸肩："随你。但那芯片的秘密，迟早会找上你的。"', relationshipChanges: { mara: -10 } as Record<string, number> } },
+            { text: '告诉她你已经知道她和低语者的关系', result: { message: '苏漫的笑容僵住了。"……你跟踪我了？"她的眼神变得危险，"好吧，那我们就开诚布公。但你最好别把这事告诉老严。"', relationshipChanges: { mara: -5 } as Record<string, number>, fragmentsDiscovered: ['ms_3'] } },
           ],
         },
       };
@@ -111,7 +111,7 @@ export const CHAPTER2_EVENTS: GameEvent[] = [
     onTrigger: (player) => {
       player.discoverFragment('as_1', '观察');
       return {
-        message: `深夜，你失眠走到中心广场。远处，铁砧的橙色圆点在黑暗中微微发光。\n\n它没有在巡视——它坐在地热井口旁，屏幕上快速滚动着文字。你悄悄靠近，看到屏幕上写着：\n\n"Day ${player.day} 观察记录：\n- 老埃兹拉今日情绪波动 3 次，触发因素：零件短缺\n- 萨米拉与阿洛目光接触 2 次，持续时间超过社交常规\n- 新来者（玩家）行为模式：尚在评估中……"\n\n铁砧在记录每个人的行为。像在写一本关于人类的书。`,
+        message: `深夜，你失眠走到中心广场。远处，铁砧的橙色圆点在黑暗中微微发光。\n\n它没有在巡视——它坐在地热井口旁，屏幕上快速滚动着文字。你悄悄靠近，看到屏幕上写着：\n\n"Day ${player.day} 观察记录：\n- 老严今日情绪波动 3 次，触发因素：零件短缺\n- 沈沫与阿洛目光接触 2 次，持续时间超过社交常规\n- 新来者（玩家）行为模式：尚在评估中……"\n\n铁砧在记录每个人的行为。像在写一本关于人类的书。`,
         fragmentsDiscovered: ['as_1'],
       };
     },
